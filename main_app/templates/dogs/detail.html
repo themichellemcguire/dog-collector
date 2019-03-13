@@ -20,7 +20,6 @@
         <a href="{% url 'dogs_update' dog.id %}">Edit</a>
         <a href="{% url 'dogs_delete' dog.id %}">Delete</a>
       </div>
-      
     </div>
     {% for photo in dog.photo_set.all %}
       <img class="responsive-img card-panel" src="{{photo.url}}">
