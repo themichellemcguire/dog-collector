@@ -1,5 +1,7 @@
 from django.db import models
 from django.urls import reverse
+from datetime import date
+from django.contrib.auth.models import User
 
 MEALS = (
     ('B', 'Breakfast'),
@@ -25,12 +27,17 @@ class Dog(models.Model):
     description = models.TextField(max_length=250)
     age = models.IntegerField()
     toys = models.ManyToManyField(Toy)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+
 
     def __str__(self):
         return self.name
 
     def get_absolute_url(self):
         return reverse('detail', kwargs={'dog_id': self.id})
+    
+    def fed_for_today(self):
+      return self.feeding_set.filter(date=date.today()).count() >= len(MEALS)
 
 class Feeding(models.Model):
   date = models.DateField('feeding date')

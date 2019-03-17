@@ -1,6 +1,10 @@
 from django.shortcuts import render, redirect
 from django.views.generic.edit import CreateView, UpdateView, DeleteView
 from django.views.generic import ListView, DetailView
+from django.contrib.auth import login
+from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.mixins import LoginRequiredMixin
 import uuid
 import boto3
 from .models import Dog, Toy, Photo
@@ -9,6 +13,25 @@ from .forms import FeedingForm
 S3_BASE_URL = 'https://s3-us-east-2.amazonaws.com/'
 BUCKET = 'catcollectorlmm'
 
+def signup(request):
+  error_message = ''
+  if request.method == 'POST':
+    # This is how to create a 'user' form object
+    # that includes the data from the browser
+    form = UserCreationForm(request.POST)
+    if form.is_valid():
+      # This will add the user to the database
+      user = form.save()
+      # This is how we log a user in via code
+      login(request, user)
+      return redirect('index')
+    else:
+      error_message = 'Invalid credentials - try again'
+  # A bad POST or a GET request, so render signup.html with an empty form
+  form = UserCreationForm()
+  context = {'form': form, 'error_message': error_message}
+  return render(request, 'registration/signup.html', context)
+
 # Define the home view
 def home(request):
   return render(request, 'home.html')
@@ -16,24 +39,31 @@ def home(request):
 def about(request):
   return render(request, 'about.html')
 
+@login_required
 def dogs_index(request):
-    dogs = Dog.objects.all()
+    dogs = Dog.objects.filter(user=request.user)
     return render(request, 'dogs/index.html', { 'dogs': dogs })
 
-class DogCreate(CreateView):
+class DogCreate(LoginRequiredMixin, CreateView):
   model = Dog
   fields = '__all__'
   success_url = '/dogs/'
+  def form_valid(self, form):
+  # Assign the logged in user
+    form.instance.user = self.request.user
+  # Let the CreateView do its job as usual
+    return super().form_valid(form)
 
-class DogUpdate(UpdateView):
+class DogUpdate(LoginRequiredMixin, UpdateView):
   model = Dog
   # Let's make it impossible to change a dog breed :)
   fields = ['name', 'description', 'age']
 
-class DogDelete(DeleteView):
+class DogDelete(LoginRequiredMixin, DeleteView):
   model = Dog
   success_url = '/dogs/'
 
+@login_required
 def dogs_detail(request, dog_id):
   dog = Dog.objects.get(id=dog_id)
   toys_dog_doesnt_have = Toy.objects.exclude(id__in = dog.toys.all().values_list('id'))
@@ -45,6 +75,7 @@ def dogs_detail(request, dog_id):
     'toys': toys_dog_doesnt_have
   })
 
+@login_required
 def add_feeding(request, dog_id):
   # create the ModelForm using the data in request.POST
   form = FeedingForm(request.POST)
@@ -57,6 +88,7 @@ def add_feeding(request, dog_id):
     new_feeding.save()
   return redirect('detail', dog_id=dog_id)
 
+@login_required
 def add_photo(request, dog_id):
 	# photo-file was the "name" attribute on the <input type="file">
     photo_file = request.FILES.get('photo-file', None)
@@ -76,26 +108,27 @@ def add_photo(request, dog_id):
             print('An error occurred uploading file to S3')
     return redirect('detail', dog_id=dog_id)  
 
+@login_required
 def assoc_toy(request, dog_id, toy_id):
   # Note that you can pass a toy's id instead of the whole object
   Dog.objects.get(id=dog_id).toys.add(toy_id)
   return redirect('detail', dog_id=dog_id)
 
-class ToyList(ListView):
+class ToyList(LoginRequiredMixin, ListView):
   model = Toy
 
-class ToyDetail(DetailView):
+class ToyDetail(LoginRequiredMixin, DetailView):
   model = Toy
 
-class ToyCreate(CreateView):
+class ToyCreate(LoginRequiredMixin, CreateView):
   model = Toy
   fields = '__all__'
 
-class ToyUpdate(UpdateView):
+class ToyUpdate(LoginRequiredMixin, UpdateView):
   model = Toy
   fields = ['name', 'color']
 
-class ToyDelete(DeleteView):
+class ToyDelete(LoginRequiredMixin, DeleteView):
   model = Toy
   success_url = '/toys/'
 
